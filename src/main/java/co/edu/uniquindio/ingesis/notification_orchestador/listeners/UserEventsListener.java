@@ -43,6 +43,12 @@ public class UserEventsListener {
                 .message(message)
                 .channel(Channel.EMAIL)
                 .build());
+        notificationProducer.sendNotification(Notification.builder()
+                .recipient(event.getPhoneNumber()) // aquí usas el phone del usuario
+                .message("Hola " + event.getFullName() +
+                        ", revisa tu correo para activar tu cuenta.") // mensaje más corto para SMS
+                .channel(Channel.SMS)
+                .build());
     }
 
     @RabbitHandler

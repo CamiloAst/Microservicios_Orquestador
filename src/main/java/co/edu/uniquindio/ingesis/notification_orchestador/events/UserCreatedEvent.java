@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Getter
 public class UserCreatedEvent {
-    private Long userId;
     private String email;
     private String fullName;
+    private String phoneNumber;
 }
