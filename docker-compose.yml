@@ -1,71 +1,111 @@
+version: "3.9"
+
 services:
   db:
     image: postgres:16
+    container_name: db
     environment:
       POSTGRES_USER: authuser
       POSTGRES_PASSWORD: authpass
       POSTGRES_DB: authdb
-    ports: ["5432:5432"]
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U authuser -d authdb"]
       interval: 10s
       timeout: 5s
       retries: 5
     volumes:
+      # Opcional: scripts .sql para crear esquemas, usuarios extra, y la DB 'notifications'
+      # Ej: ./db/init/01-init.sql con:  CREATE DATABASE notifications;
       - ./db/init:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
 
   rabbitmq:
     image: rabbitmq:3.13-management
+    container_name: rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"  # UI: http://localhost:15672 (guest/guest)
+      - "5672:5672"   # AMQP
+      - "15672:15672" # UI: http://localhost:15672 (guest/guest)
     healthcheck:
       test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   auth-app:
+    container_name: auth-app
     build:
       context: ../Microservicios_2025-2
       dockerfile: Dockerfile
     environment:
+      # DB
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/authdb
       SPRING_DATASOURCE_USERNAME: authuser
       SPRING_DATASOURCE_PASSWORD: authpass
+      # Rabbit
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      # JWT (ajusta a lo tuyo)
       APP_JWT_SECRET: change-me-super-secret
       APP_JWT_MINUTES: 60
+      # Server
       SERVER_PORT: 8080
     depends_on:
       db:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    ports: ["8080:8080"]
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
 
-  notification-service:
+  orchestrator:
+    container_name: orchestrator
     build:
-      # Si tu Dockerfile está en la RAÍZ del repo de notificaciones (multi-módulo)
-      context: ../notification_system
+      context: ../Microservicios_Orquestador
       dockerfile: Dockerfile
-      # Si está dentro del submódulo, cambia context por ../notification_system/notification-service
     environment:
+      # Rabbit
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      # Server
+      SERVER_PORT: 8082
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    restart: unless-stopped
 
-      # DB para notificaciones (usa la misma instancia pero otra base)
+  notification-service:
+    container_name: notification-service
+    build:
+      # Ajusta si tu Dockerfile está en un submódulo
+      context: ../notification_system
+      dockerfile: Dockerfile
+    environment:
+      # Rabbit
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      # DB (usa la misma instancia con otra base)
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/notifications
       SPRING_DATASOURCE_USERNAME: authuser
       SPRING_DATASOURCE_PASSWORD: authpass
-
+      # Server
       SERVER_PORT: 8081
     depends_on:
       db:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    ports: ["8081:8081"]
+    ports:
+      - "8081:8081"
+    restart: unless-stopped

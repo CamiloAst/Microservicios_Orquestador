@@ -9,79 +9,65 @@ import co.edu.uniquindio.ingesis.notification_orchestador.events.UserCreatedEven
 import co.edu.uniquindio.ingesis.notification_orchestador.events.UserLoginEvent;
 import co.edu.uniquindio.ingesis.notification_orchestador.messaging.NotificationProducer;
 import lombok.RequiredArgsConstructor;
+import org.springframework.amqp.rabbit.annotation.RabbitHandler;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@RabbitListener(queues = RabbitMQConfigUser.USER_EVENTS_QUEUE, containerFactory = "rabbitListenerContainerFactory")
 public class UserEventsListener {
 
     private final NotificationProducer notificationProducer;
 
-    @RabbitListener(queues = RabbitMQConfigUser.USER_EVENTS_QUEUE)
-    public void handleUserCreatedEvent(UserCreatedEvent event) {
-        String message = "Hola " + event.getFullName() + ", por favor confirma tu email para activar tu cuenta.";
-
-        Notification notification = Notification.builder()
-                .recipient(event.getEmail())
-                .message(message)
-                .channel(Channel.EMAIL)
-                .build();
-
-        notificationProducer.sendNotification(notification);
-    }
-
-    @RabbitListener(queues = RabbitMQConfigUser .USER_EVENTS_QUEUE)
-    public void handleUserLoginEvent(UserLoginEvent event) {
+    @RabbitHandler
+    public void handle(UserLoginEvent event) {
         String message = "Usted ha iniciado sesión para activar tu cuenta.";
-
-        Notification notification = Notification.builder()
-                .recipient(event.getEmail())
-                .message(message)
-                .channel(Channel.EMAIL) // Puedes enviar también SMS si quieres
-                .build();
-        Notification notificationSms = Notification.builder()
-                .recipient(event.getEmail())
-                .message(message)
-                .channel(Channel.SMS)
-                .build();
-
-        notificationProducer.sendNotification(notification);
-        notificationProducer.sendNotification(notificationSms);
-        // Si quieres enviar SMS también, crea otra notificación con Channel.SMS
-    }
-
-    @RabbitListener(queues = RabbitMQConfigUser .USER_EVENTS_QUEUE)
-    public void handlePasswordRecoveryRequestedEvent(PasswordRecoveryRequestedEvent event) {
-        String message = "Has solicitado recuperar tu contraseña. Usa este enlace para restablecerla: <a href='https://tuapp.com/recover?user=" + event.getUserId() + "'>Recuperar contraseña</a>";
-
-        Notification notification = Notification.builder()
+        notificationProducer.sendNotification(Notification.builder()
                 .recipient(event.getEmail())
                 .message(message)
                 .channel(Channel.EMAIL)
-                .build();
-
-        notificationProducer.sendNotification(notification);
-    }
-
-    @RabbitListener(queues = RabbitMQConfigUser .USER_EVENTS_QUEUE)
-    public void handlePasswordChangedEvent(PasswordChangedEvent event) {
-        String message = "Tu contraseña ha sido actualizada exitosamente. Si no fuiste tú, contacta soporte inmediatamente.";
-
-        Notification notificationEmail = Notification.builder()
-                .recipient(event.getEmail())
-                .message(message)
-                .channel(Channel.EMAIL)
-                .build();
-
-        Notification notificationSms = Notification.builder()
+                .build());
+        notificationProducer.sendNotification(Notification.builder()
                 .recipient(event.getEmail())
                 .message(message)
                 .channel(Channel.SMS)
-                .build();
+                .build());
+    }
 
-        notificationProducer.sendNotification(notificationEmail);
-        notificationProducer.sendNotification(notificationSms);
+    @RabbitHandler
+    public void handle(UserCreatedEvent event) {
+        String message = "Hola " + event.getFullName() + ", por favor confirma tu email para activar tu cuenta.";
+        notificationProducer.sendNotification(Notification.builder()
+                .recipient(event.getEmail())
+                .message(message)
+                .channel(Channel.EMAIL)
+                .build());
+    }
+
+    @RabbitHandler
+    public void handle(PasswordRecoveryRequestedEvent event) {
+        String message = "Has solicitado recuperar tu contraseña. Usa este enlace para restablecerla: "
+                + "https://tuapp.com/recover?user=" + event.getUserId();
+        notificationProducer.sendNotification(Notification.builder()
+                .recipient(event.getEmail())
+                .message(message)
+                .channel(Channel.EMAIL)
+                .build());
+    }
+
+    @RabbitHandler
+    public void handle(PasswordChangedEvent event) {
+        String message = "Tu contraseña ha sido actualizada exitosamente. Si no fuiste tú, contacta soporte.";
+        notificationProducer.sendNotification(Notification.builder()
+                .recipient(event.getEmail())
+                .message(message)
+                .channel(Channel.EMAIL)
+                .build());
+        notificationProducer.sendNotification(Notification.builder()
+                .recipient(event.getEmail())
+                .message(message)
+                .channel(Channel.SMS)
+                .build());
     }
 }
-

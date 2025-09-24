@@ -11,14 +11,14 @@ public class RabbitMQConfigUser {
     public static final String USER_EVENTS_QUEUE = "user.events.queue";
     public static final String USER_EVENTS_ROUTING_KEY = "user.events.routingkey";
 
-    @Bean
+    @Bean(name = "userEventsExchange")
     public DirectExchange userEventsExchange() {
         return new DirectExchange(USER_EVENTS_EXCHANGE);
     }
 
-    @Bean
+    @Bean(name = "userEventsQueue")
     public Queue userEventsQueue() {
-        return new Queue(USER_EVENTS_QUEUE);
+        return new Queue(USER_EVENTS_QUEUE, true);
     }
 
     @Bean
