@@ -29,7 +29,7 @@ public class UserEventsListener {
                 .channel(Channel.EMAIL)
                 .build());
         notificationProducer.sendNotification(Notification.builder()
-                .recipient(event.getEmail())
+                .recipient(event.getPhoneNumber())
                 .message(message)
                 .channel(Channel.SMS)
                 .build());
