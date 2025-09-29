@@ -1,111 +1,154 @@
 version: "3.9"
 
-services:
-  db:
-    image: postgres:16
-    container_name: db
-    environment:
-      POSTGRES_USER: authuser
-      POSTGRES_PASSWORD: authpass
-      POSTGRES_DB: authdb
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U authuser -d authdb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      # Opcional: scripts .sql para crear esquemas, usuarios extra, y la DB 'notifications'
-      # Ej: ./db/init/01-init.sql con:  CREATE DATABASE notifications;
-      - ./db/init:/docker-entrypoint-initdb.d:ro
-    restart: unless-stopped
+networks:
+  backend:
+    driver: bridge
 
+volumes:
+  auth_db_data:
+  notif_db_data:
+
+services:
   rabbitmq:
     image: rabbitmq:3.13-management
     container_name: rabbitmq
     ports:
-      - "5672:5672"   # AMQP
-      - "15672:15672" # UI: http://localhost:15672 (guest/guest)
+      - "${RABBITMQ_PORT}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     healthcheck:
       test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks: [backend]
+
+  auth-db:
+    image: postgres:16
+    container_name: auth-db
+    environment:
+      POSTGRES_USER: ${AUTH_DB_USER}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASS}
+      POSTGRES_DB: ${AUTH_DB_NAME}
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+      - ./db/auth-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER} -d ${AUTH_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks: [backend]
+
+  notif-db:
+    image: postgres:16
+    container_name: notif-db
+    environment:
+      POSTGRES_USER: ${NOTIF_DB_USER}
+      POSTGRES_PASSWORD: ${NOTIF_DB_PASS}
+      POSTGRES_DB: ${NOTIF_DB_NAME}
+    volumes:
+      - notif_db_data:/var/lib/postgresql/data
+      - ./db/notif-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NOTIF_DB_USER} -d ${NOTIF_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks: [backend]
+
+  pgadmin:
+    image: dpage/pgadmin4:8.11
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "${PGADMIN_PORT}:80"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      notif-db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [backend]
 
   auth-app:
-    container_name: auth-app
     build:
       context: ../Microservicios_2025-2
       dockerfile: Dockerfile
+    container_name: auth-app
     environment:
-      # DB
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/authdb
-      SPRING_DATASOURCE_USERNAME: authuser
-      SPRING_DATASOURCE_PASSWORD: authpass
-      # Rabbit
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:${AUTH_DB_PORT}/${AUTH_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${AUTH_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${AUTH_DB_PASS}
+
       SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_RABBITMQ_PORT: 5672
-      SPRING_RABBITMQ_USERNAME: guest
-      SPRING_RABBITMQ_PASSWORD: guest
-      # JWT (ajusta a lo tuyo)
-      APP_JWT_SECRET: change-me-super-secret
-      APP_JWT_MINUTES: 60
-      # Server
-      SERVER_PORT: 8080
+      SPRING_RABBITMQ_PORT: ${RABBITMQ_PORT}
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+
+      APP_JWT_SECRET: ${APP_JWT_SECRET}
+      APP_JWT_MINUTES: ${APP_JWT_MINUTES}
+
+      SERVER_PORT: ${AUTH_APP_PORT}
     depends_on:
-      db:
+      auth-db:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "${AUTH_APP_PORT}:${AUTH_APP_PORT}"
     restart: unless-stopped
+    networks: [backend]
 
   orchestrator:
-    container_name: orchestrator
     build:
       context: ../Microservicios_Orquestador
       dockerfile: Dockerfile
+    container_name: orchestrator
     environment:
-      # Rabbit
       SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_RABBITMQ_PORT: 5672
-      SPRING_RABBITMQ_USERNAME: guest
-      SPRING_RABBITMQ_PASSWORD: guest
-      # Server
-      SERVER_PORT: 8082
+      SPRING_RABBITMQ_PORT: ${RABBITMQ_PORT}
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+
+      SERVER_PORT: ${ORCH_APP_PORT}
     depends_on:
       rabbitmq:
         condition: service_healthy
     ports:
-      - "8082:8082"
+      - "${ORCH_APP_PORT}:${ORCH_APP_PORT}"
     restart: unless-stopped
+    networks: [backend]
 
   notification-service:
-    container_name: notification-service
     build:
-      # Ajusta si tu Dockerfile está en un submódulo
       context: ../notification_system
       dockerfile: Dockerfile
+    container_name: notification-service
     environment:
-      # Rabbit
+      SPRING_DATASOURCE_URL: jdbc:postgresql://notif-db:${NOTIF_DB_PORT}/${NOTIF_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${NOTIF_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${NOTIF_DB_PASS}
+
       SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_RABBITMQ_PORT: 5672
-      SPRING_RABBITMQ_USERNAME: guest
-      SPRING_RABBITMQ_PASSWORD: guest
-      # DB (usa la misma instancia con otra base)
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/notifications
-      SPRING_DATASOURCE_USERNAME: authuser
-      SPRING_DATASOURCE_PASSWORD: authpass
-      # Server
-      SERVER_PORT: 8081
+      SPRING_RABBITMQ_PORT: ${RABBITMQ_PORT}
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+
+      SERVER_PORT: ${NOTIF_APP_PORT}
     depends_on:
-      db:
+      notif-db:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     ports:
-      - "8081:8081"
+      - "${NOTIF_APP_PORT}:${NOTIF_APP_PORT}"
     restart: unless-stopped
+    networks: [backend]
