@@ -11,6 +11,8 @@ import java.time.Instant;
 @AllArgsConstructor
 public class PasswordRecoveryRequestedEvent {
     private Long userId;
+    private String username;
     private String email;
-    private Instant requestedAt;
+    private String phoneNumber;
+    private String timestamp;
 }

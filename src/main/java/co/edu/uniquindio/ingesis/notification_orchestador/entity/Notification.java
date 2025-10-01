@@ -14,7 +14,6 @@ public class Notification {
     private String title;
     private String message;
     private String recipient;
-    private String phoneNumber;
     private Channel channel;
     private NotificationStatus status;
     private Instant scheduledAt;

@@ -70,6 +70,8 @@ services:
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
     ports:
       - "${PGADMIN_PORT}:80"
+    volumes:
+      - ./pgadmin/servers.json:/pgadmin4/servers.json
     depends_on:
       auth-db:
         condition: service_healthy
@@ -143,6 +145,16 @@ services:
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
 
       SERVER_PORT: ${NOTIF_APP_PORT}
+
+      SPRING_MAIL_HOST: smtp.gmail.com
+      SPRING_MAIL_PORT: 587
+      SPRING_MAIL_USERNAME: ${MAIL_USER}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASS}  # APP PASSWORD de Gmail
+      APP_MAIL_FROM: ${MAIL_FROM}
+
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
     depends_on:
       notif-db:
         condition: service_healthy

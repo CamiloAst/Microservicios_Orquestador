@@ -1,0 +1,22 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Auth DB",
+      "Group": "Databases",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "authdb",
+      "Username": "authuser",
+      "SSLMode": "prefer"
+    },
+    "2": {
+      "Name": "Notifications DB",
+      "Group": "Databases",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "notifications",
+      "Username": "authuser",
+      "SSLMode": "prefer"
+    }
+  }
+}

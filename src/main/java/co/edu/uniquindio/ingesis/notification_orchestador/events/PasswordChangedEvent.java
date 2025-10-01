@@ -10,7 +10,8 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PasswordChangedEvent {
-    private Long userId;
+    private String username;
     private String email;
-    private Instant changedAt;
+    private String phoneNumber;
+    private String timestamp;
 }

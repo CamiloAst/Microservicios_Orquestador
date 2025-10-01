@@ -37,7 +37,7 @@ public class UserEventsListener {
 
     @RabbitHandler
     public void handle(UserCreatedEvent event) {
-        String message = "Hola " + event.getFullName() + ", por favor confirma tu email para activar tu cuenta.";
+        String message = "Hola " + event.getUsername() + ", por favor confirma tu email para activar tu cuenta.";
         notificationProducer.sendNotification(Notification.builder()
                 .recipient(event.getEmail())
                 .message(message)
@@ -45,7 +45,7 @@ public class UserEventsListener {
                 .build());
         notificationProducer.sendNotification(Notification.builder()
                 .recipient(event.getPhoneNumber()) // aquí usas el phone del usuario
-                .message("Hola " + event.getFullName() +
+                .message("Hola " + event.getUsername() +
                         ", revisa tu correo para activar tu cuenta.") // mensaje más corto para SMS
                 .channel(Channel.SMS)
                 .build());
@@ -71,7 +71,7 @@ public class UserEventsListener {
                 .channel(Channel.EMAIL)
                 .build());
         notificationProducer.sendNotification(Notification.builder()
-                .recipient(event.getEmail())
+                .recipient(event.getPhoneNumber())
                 .message(message)
                 .channel(Channel.SMS)
                 .build());
