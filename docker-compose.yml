@@ -67,6 +67,24 @@ services:
     restart: unless-stopped
     networks: [backend]
 
+  sonar-db:
+    image: postgres:16
+    container_name: sonar-db
+    environment:
+      POSTGRES_USER: ${SONAR_DB_USER}
+      POSTGRES_PASSWORD: ${SONAR_DB_PASS}
+      POSTGRES_DB: ${SONAR_DB_NAME}
+    volumes:
+      - sonar_db_data:/var/lib/postgresql/data
+      - ./db/sonar-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${SONAR_DB_USER} -d ${SONAR_DB_NAME}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks: [ backend ]
+
   pgadmin:
     image: dpage/pgadmin4:8.11
     container_name: pgadmin
@@ -81,6 +99,8 @@ services:
       auth-db:
         condition: service_healthy
       notif-db:
+        condition: service_healthy
+      sonar-db:
         condition: service_healthy
     restart: unless-stopped
     networks: [backend]
@@ -194,22 +214,7 @@ services:
     # =======================
     # SonarQube + Postgres
     # =======================
-  sonar-db:
-    image: postgres:16
-    container_name: sonar-db
-    environment:
-      POSTGRES_USER: ${SONAR_DB_USER}
-      POSTGRES_PASSWORD: ${SONAR_DB_PASS}
-      POSTGRES_DB: ${SONAR_DB_NAME}
-    volumes:
-      - sonar_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${SONAR_DB_USER} -d ${SONAR_DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-    networks: [backend]
+
 
   sonarqube:
     image: sonarqube:10.6-community

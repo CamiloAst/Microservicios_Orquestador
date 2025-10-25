@@ -19,6 +19,16 @@
       "Username": "notif_user",
       "SSLMode": "prefer",
       "ConnectNow": true
+    },
+    "3": {
+      "Name": "Sonar DB",
+      "Group": "Local",
+      "Host": "sonar-db",
+      "Port": 5432,
+      "MaintenanceDB": "postgres",
+      "Username": "sonar",
+      "SSLMode": "prefer",
+      "ConnectNow": true
     }
   }
 }

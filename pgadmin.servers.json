@@ -6,7 +6,7 @@
       "Host": "db",
       "Port": 5432,
       "MaintenanceDB": "authdb",
-      "Username": "authuser",
+      "Username": "auth_user",
       "SSLMode": "prefer"
     },
     "2": {
@@ -15,7 +15,16 @@
       "Host": "db",
       "Port": 5432,
       "MaintenanceDB": "notifications",
-      "Username": "authuser",
+      "Username": "notif_user",
+      "SSLMode": "prefer"
+    },
+    "3": {
+      "Name": "Sonar DB",
+      "Group": "Local",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "sonarqube",
+      "Username": "sonar",
       "SSLMode": "prefer"
     }
   }
