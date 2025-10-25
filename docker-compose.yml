@@ -7,6 +7,11 @@ networks:
 volumes:
   auth_db_data:
   notif_db_data:
+  jenkins_home:
+  sonar_data:
+  sonar_extensions:
+  sonar_logs:
+  sonar_db_data:
 
 services:
   rabbitmq:
@@ -71,7 +76,7 @@ services:
     ports:
       - "${PGADMIN_PORT}:80"
     volumes:
-      - ./pgadmin/servers.json:/pgadmin4/servers.json
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
     depends_on:
       auth-db:
         condition: service_healthy
@@ -162,5 +167,71 @@ services:
         condition: service_healthy
     ports:
       - "${NOTIF_APP_PORT}:${NOTIF_APP_PORT}"
+    restart: unless-stopped
+    networks: [backend]
+
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: jenkins
+    user: "0:0"               # evita problemas de permisos en Windows
+    ports:
+      - "${JENKINS_PORT}:8080"
+      - "${JENKINS_AGENT_PORT}:50000"
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      # (opcional) si quieres que Jenkins ejecute Docker en host para builds:
+      # - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/login > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks: [backend]
+
+    # =======================
+    # SonarQube + Postgres
+    # =======================
+  sonar-db:
+    image: postgres:16
+    container_name: sonar-db
+    environment:
+      POSTGRES_USER: ${SONAR_DB_USER}
+      POSTGRES_PASSWORD: ${SONAR_DB_PASS}
+      POSTGRES_DB: ${SONAR_DB_NAME}
+    volumes:
+      - sonar_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SONAR_DB_USER} -d ${SONAR_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks: [backend]
+
+  sonarqube:
+    image: sonarqube:10.6-community
+    container_name: sonarqube
+    depends_on:
+      sonar-db:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/${SONAR_DB_NAME}
+      SONAR_JDBC_USERNAME: ${SONAR_DB_USER}
+      SONAR_JDBC_PASSWORD: ${SONAR_DB_PASS}
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"  # útil en laptops
+    volumes:
+      - sonar_data:/opt/sonarqube/data
+      - sonar_extensions:/opt/sonarqube/extensions
+      - sonar_logs:/opt/sonarqube/logs
+    ports:
+      - "${SONARQUBE_PORT}:9000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/api/system/status | grep -qE 'UP|DB_MIGRATION_NEEDED'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
     networks: [backend]
