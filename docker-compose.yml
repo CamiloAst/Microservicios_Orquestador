@@ -131,6 +131,12 @@ services:
         condition: service_healthy
     ports:
       - "${AUTH_APP_PORT}:${AUTH_APP_PORT}"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:8080/ | grep -q UP" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
     networks: [backend]
 
@@ -240,3 +246,26 @@ services:
       retries: 20
     restart: unless-stopped
     networks: [backend]
+
+  jenkins-trigger:
+    image: curlimages/curl:8.10.1
+    container_name: jenkins-trigger-auth
+    depends_on:
+      auth-app:
+        condition: service_healthy
+      jenkins:
+        condition: service_started
+    environment:
+      # 👉 Dentro de la red Docker Jenkins atiende en 8080
+      JENKINS_URL: "http://jenkins:8080"
+      # Usa tus variables del .env (ya las tienes al final del archivo)
+      MBP_PATH: "${MBP_PATH}"          # p.ej. /job/Auth-app
+      BRANCH: "${BRANCH}"              # p.ej. main
+      JENKINS_USER: "${JENKINS_USER}"  # p.ej. camilo
+      JENKINS_API_TOKEN: "${JENKINS_API_TOKEN}"
+      # (Opcional) parámetros si tu Jenkinsfile define parametros()
+      PARAMS: ""                       # p.ej. SERVICE=auth-app&ENV=staging
+    volumes:
+      - ./scripts/trigger_branch_build.sh:/scripts/trigger_branch_build.sh:ro
+    command: [ "/bin/sh", "-c", "sh /scripts/trigger_branch_build.sh" ]
+    networks: [ backend ]
