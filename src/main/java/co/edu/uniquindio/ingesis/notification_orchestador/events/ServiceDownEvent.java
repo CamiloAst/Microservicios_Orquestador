@@ -1,0 +1,15 @@
+package co.edu.uniquindio.ingesis.notification_orchestador.events;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.Instant;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ServiceDownEvent {
+    private String serviceName;
+    private String serviceUrl;
+    private String status;
+    private Instant timestamp;
+}

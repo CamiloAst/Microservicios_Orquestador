@@ -9,6 +9,8 @@ import co.edu.uniquindio.ingesis.notification_orchestador.events.UserCreatedEven
 import co.edu.uniquindio.ingesis.notification_orchestador.events.UserLoginEvent;
 import co.edu.uniquindio.ingesis.notification_orchestador.messaging.NotificationProducer;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
@@ -19,10 +21,14 @@ import org.springframework.stereotype.Component;
 public class UserEventsListener {
 
     private final NotificationProducer notificationProducer;
+    private static final Logger log = LoggerFactory.getLogger(UserEventsListener.class);
+
 
     @RabbitHandler
+    @RabbitListener(queues ="user.events")
     public void handle(UserLoginEvent event) {
         String message = "Usted ha iniciado sesión para activar tu cuenta.";
+        log.info("📥 Evento recibido desde AuthService: {}", event.getUsername());
         notificationProducer.sendNotification(Notification.builder()
                 .recipient(event.getEmail())
                 .message(message)
