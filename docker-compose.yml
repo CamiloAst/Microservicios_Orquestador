@@ -132,11 +132,12 @@ services:
     ports:
       - "${AUTH_APP_PORT}:${AUTH_APP_PORT}"
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:8080/ | grep -q UP" ]
+      # Devuelve 0 sólo si la URL responde 200
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:${AUTH_APP_PORT}/actuator/health" ]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 20s
+      retries: 15
+      start_period: 25s
     restart: unless-stopped
     networks: [backend]
 
@@ -186,6 +187,7 @@ services:
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
       TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+      TWILIO_WHATSAPP_NUMBER: ${TWILIO_WHATSAPP_NUMBER}
     depends_on:
       notif-db:
         condition: service_healthy
@@ -193,6 +195,12 @@ services:
         condition: service_healthy
     ports:
       - "${NOTIF_APP_PORT}:${NOTIF_APP_PORT}"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     networks: [backend]
 
@@ -256,15 +264,12 @@ services:
       jenkins:
         condition: service_started
     environment:
-      # 👉 Dentro de la red Docker Jenkins atiende en 8080
       JENKINS_URL: "http://jenkins:8080"
-      # Usa tus variables del .env (ya las tienes al final del archivo)
-      MBP_PATH: "${MBP_PATH}"          # p.ej. /job/Auth-app
-      BRANCH: "${BRANCH}"              # p.ej. main
-      JENKINS_USER: "${JENKINS_USER}"  # p.ej. camilo
+      MBP_PATH: "${MBP_PATH}"
+      BRANCH: "${BRANCH}"
+      JENKINS_USER: "${JENKINS_USER}"
       JENKINS_API_TOKEN: "${JENKINS_API_TOKEN}"
-      # (Opcional) parámetros si tu Jenkinsfile define parametros()
-      PARAMS: ""                       # p.ej. SERVICE=auth-app&ENV=staging
+
     volumes:
       - ./scripts/trigger_branch_build.sh:/scripts/trigger_branch_build.sh:ro
     command: [ "/bin/sh", "-c", "sh /scripts/trigger_branch_build.sh" ]

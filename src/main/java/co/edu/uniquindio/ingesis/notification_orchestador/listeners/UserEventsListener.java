@@ -25,7 +25,7 @@ public class UserEventsListener {
 
 
     @RabbitHandler
-    @RabbitListener(queues ="user.events")
+    @RabbitListener(queues ="user.events.queue")
     public void handle(UserLoginEvent event) {
         String message = "Usted ha iniciado sesión para activar tu cuenta.";
         log.info("📥 Evento recibido desde AuthService: {}", event.getUsername());
