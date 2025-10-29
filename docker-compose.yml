@@ -204,6 +204,38 @@ services:
     restart: unless-stopped
     networks: [backend]
 
+  monitoring-app:
+    build:
+      context: ../monitoring          # <- ajusta a la ruta real del proyecto monitoring
+      dockerfile: Dockerfile
+    container_name: monitoring-app
+    environment:
+      # Variables del servicio si las usas (RabbitMQ, etc.)
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: ${RABBITMQ_PORT}
+      # ...
+      SERVER_PORT: ${MONITORING_APP_PORT}
+    depends_on:
+      jenkins:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy    # si tu monitoring usa RabbitMQ
+      auth-app:
+        condition: service_healthy  # si dependes de auth para checks
+      notification-service:
+        condition: service_healthy
+    ports:
+      - "${MONITORING_APP_PORT}:${MONITORING_APP_PORT}"
+    healthcheck:
+      # Ajusta el endpoint de salud de tu monitoring
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:${MONITORING_APP_PORT}/monitor/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 25s
+    restart: unless-stopped
+    networks: [ backend ]
+
   jenkins:
     image: jenkins/jenkins:lts-jdk17
     container_name: jenkins
@@ -270,6 +302,25 @@ services:
       JENKINS_USER: "${JENKINS_USER}"
       JENKINS_API_TOKEN: "${JENKINS_API_TOKEN}"
 
+    volumes:
+      - ./scripts/trigger_branch_build.sh:/scripts/trigger_branch_build.sh:ro
+    command: [ "/bin/sh", "-c", "sh /scripts/trigger_branch_build.sh" ]
+    networks: [ backend ]
+
+  jenkins-trigger-monitoring:
+    image: curlimages/curl:8.10.1
+    container_name: jenkins-trigger-monitoring
+    depends_on:
+      monitoring-app:
+        condition: service_healthy
+      jenkins:
+        condition: service_started
+    environment:
+      JENKINS_URL: "http://jenkins:8080"
+      MBP_PATH: "${MBP_PATH_MONITORING}"   # ruta del multibranch del monitoring
+      BRANCH: "${BRANCH}"
+      JENKINS_USER: "${JENKINS_USER}"
+      JENKINS_API_TOKEN: "${JENKINS_API_TOKEN}"
     volumes:
       - ./scripts/trigger_branch_build.sh:/scripts/trigger_branch_build.sh:ro
     command: [ "/bin/sh", "-c", "sh /scripts/trigger_branch_build.sh" ]
