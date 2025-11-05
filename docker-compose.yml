@@ -158,6 +158,12 @@ services:
         condition: service_healthy
     ports:
       - "${ORCH_APP_PORT}:${ORCH_APP_PORT}"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:${ORCH_APP_PORT}/actuator/health || wget -q --spider http://localhost:${ORCH_APP_PORT}/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 25s
     restart: unless-stopped
     networks: [backend]
 
@@ -216,8 +222,6 @@ services:
       # ...
       SERVER_PORT: ${MONITORING_APP_PORT}
     depends_on:
-      jenkins:
-        condition: service_started
       rabbitmq:
         condition: service_healthy    # si tu monitoring usa RabbitMQ
       auth-app:
@@ -227,7 +231,6 @@ services:
     ports:
       - "${MONITORING_APP_PORT}:${MONITORING_APP_PORT}"
     healthcheck:
-      # Ajusta el endpoint de salud de tu monitoring
       test: [ "CMD-SHELL", "wget -q --spider http://localhost:${MONITORING_APP_PORT}/monitor/health" ]
       interval: 10s
       timeout: 5s
@@ -307,21 +310,21 @@ services:
     command: [ "/bin/sh", "-c", "sh /scripts/trigger_branch_build.sh" ]
     networks: [ backend ]
 
-  jenkins-trigger-monitoring:
-    image: curlimages/curl:8.10.1
-    container_name: jenkins-trigger-monitoring
-    depends_on:
-      monitoring-app:
-        condition: service_healthy
-      jenkins:
-        condition: service_started
-    environment:
-      JENKINS_URL: "http://jenkins:8080"
-      MBP_PATH: "${MBP_PATH_MONITORING}"   # ruta del multibranch del monitoring
-      BRANCH: "${BRANCH}"
-      JENKINS_USER: "${JENKINS_USER}"
-      JENKINS_API_TOKEN: "${JENKINS_API_TOKEN}"
-    volumes:
-      - ./scripts/trigger_branch_build.sh:/scripts/trigger_branch_build.sh:ro
-    command: [ "/bin/sh", "-c", "sh /scripts/trigger_branch_build.sh" ]
-    networks: [ backend ]
+#  jenkins-trigger-monitoring:
+#    image: curlimages/curl:8.10.1
+#    container_name: jenkins-trigger-monitoring
+#    depends_on:
+#      monitoring-app:
+#        condition: service_healthy
+#      jenkins:
+#        condition: service_started
+#    environment:
+#      JENKINS_URL: "http://jenkins:8080"
+#      MBP_PATH: "${MBP_PATH_MONITORING}"   # ruta del multibranch del monitoring
+#      BRANCH: "${BRANCH}"
+#      JENKINS_USER: "${JENKINS_USER}"
+#      JENKINS_API_TOKEN: "${JENKINS_API_TOKEN}"
+#    volumes:
+#      - ./scripts/trigger_branch_build.sh:/scripts/trigger_branch_build.sh:ro
+#    command: [ "/bin/sh", "-c", "sh /scripts/trigger_branch_build.sh" ]
+#    networks: [ backend ]
