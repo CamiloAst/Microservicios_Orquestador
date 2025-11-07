@@ -12,6 +12,7 @@ volumes:
   sonar_extensions:
   sonar_logs:
   sonar_db_data:
+  profiles_db_data:
 
 services:
   rabbitmq:
@@ -85,6 +86,22 @@ services:
     restart: unless-stopped
     networks: [ backend ]
 
+  profiles-db:
+    image: postgres:16
+    container_name: profiles-db
+    environment:
+      POSTGRES_USER: profiles_user
+      POSTGRES_PASSWORD: profiles_pass
+      POSTGRES_DB: profiles
+    volumes:
+      - profiles_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U profiles_user -d profiles" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [ backend ]
+
   pgadmin:
     image: dpage/pgadmin4:8.11
     container_name: pgadmin
@@ -102,8 +119,40 @@ services:
         condition: service_healthy
       sonar-db:
         condition: service_healthy
+      profiles-db:
+        condition: service_healthy
     restart: unless-stopped
     networks: [backend]
+
+
+
+  profiles-service:
+    build:
+      context: ../profiles-service
+    container_name: profiles-service
+    depends_on:
+      profiles-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    environment:
+      DB_HOST: profiles-db
+      DB_PORT: 5432
+      DB_USER: profiles_user
+      DB_PASS: profiles_pass
+      DB_NAME: profiles
+      RABBITMQ_ENABLED: "true"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+      RABBITMQ_EXCHANGE: auth.events
+      RABBITMQ_QUEUE: profiles.events
+      RABBITMQ_ROUTING_KEY_CREATED: user.created
+      RABBITMQ_ROUTING_KEY_DELETED: user.deleted
+    ports:
+      - "8086:8086"
+    networks: [ backend ]
 
   auth-app:
     build:
