@@ -202,7 +202,7 @@ services:
     ports:
       - "${NOTIF_APP_PORT}:${NOTIF_APP_PORT}"
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:${NOTIF_APP_PORT}/actuator/health | grep -q '\"status\":\"UP\"'" ]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -310,21 +310,19 @@ services:
     command: [ "/bin/sh", "-c", "sh /scripts/trigger_branch_build.sh" ]
     networks: [ backend ]
 
-#  jenkins-trigger-monitoring:
-#    image: curlimages/curl:8.10.1
-#    container_name: jenkins-trigger-monitoring
-#    depends_on:
-#      monitoring-app:
-#        condition: service_healthy
-#      jenkins:
-#        condition: service_started
-#    environment:
-#      JENKINS_URL: "http://jenkins:8080"
-#      MBP_PATH: "${MBP_PATH_MONITORING}"   # ruta del multibranch del monitoring
-#      BRANCH: "${BRANCH}"
-#      JENKINS_USER: "${JENKINS_USER}"
-#      JENKINS_API_TOKEN: "${JENKINS_API_TOKEN}"
-#    volumes:
-#      - ./scripts/trigger_branch_build.sh:/scripts/trigger_branch_build.sh:ro
-#    command: [ "/bin/sh", "-c", "sh /scripts/trigger_branch_build.sh" ]
-#    networks: [ backend ]
+  jenkins-trigger-monitoring:
+    image: curlimages/curl:8.10.1
+    container_name: jenkins-trigger-monitoring
+    depends_on:
+      monitoring-app: { condition: service_healthy }
+      jenkins: { condition: service_started }
+    environment:
+      JENKINS_URL: "http://jenkins:8080"
+      MBP_PATH: "${MBP_PATH_MONITORING}"
+      BRANCH: "${BRANCH}"
+      JENKINS_USER: "${JENKINS_USER}"
+      JENKINS_API_TOKEN: "${JENKINS_API_TOKEN}"
+    volumes:
+      - ./scripts/trigger_branch_build.sh:/scripts/trigger_branch_build.sh:ro
+    command: [ "/bin/sh", "-c", "sh /scripts/trigger_branch_build.sh" ]
+    networks: [ backend ]
