@@ -40,21 +40,9 @@ compactor:
 limits_config:
   ingestion_rate_mb: 16
   ingestion_burst_size_mb: 32
-  max_query_length: 24h
-  max_query_parallelism: 16
-  max_entries_limit_per_query: 50000
-  enforce_metric_name: false
   reject_old_samples: true
-  reject_old_samples_max_age: 168h  # 7 días
-
-query_range:
-  parallelise_shardable_queries: true
-  cache_results: true
-  results_cache:
-    cache:
-      embedded_cache:
-        enabled: true
-        max_size_mb: 128
+  reject_old_samples_max_age: 168h
+  allow_structured_metadata: false
 
 chunk_store_config:
   max_look_back_period: 0s
@@ -64,15 +52,3 @@ table_manager:
   retention_period: 168h
 
 auth_enabled: false
-
-frontend:
-  max_outstanding_per_tenant: 2048
-
-frontend_worker:
-  frontend_address: loki:9095
-
-ruler:
-  alertmanager_url: http://alertmanager:9093
-
-analytics:
-  reporting_enabled: false

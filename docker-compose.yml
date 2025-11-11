@@ -14,8 +14,6 @@ volumes:
   sonar_db_data:
   profiles_db_data:
   loki_data:
-  jenkins_plugins:
-  grafana_data:
 
 services:
   rabbitmq:
@@ -131,14 +129,11 @@ services:
   loki:
     image: grafana/loki:2.9.0
     container_name: loki
-    command: ["-config.file=/etc/loki/local-config.yaml", "-target=all"]
+    command: -config.file=/etc/loki/local-config.yaml
     ports:
       - "3100:3100"
     volumes:
       - ./observability/loki-config.yml:/etc/loki/local-config.yaml
-      - loki_data:/loki
-    environment:
-        - GOMAXPROCS=2
 
   promtail:
     image: grafana/promtail:2.9.0
@@ -162,11 +157,6 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - grafana_data:/var/lib/grafana
-    networks: [ backend ]
 
 
   profiles-service:
@@ -330,18 +320,6 @@ services:
     restart: unless-stopped
     networks: [ backend ]
 
-  jenkins-plugins:
-    image: ghcr.io/jenkinsci/plugin-installation-manager-tool:latest
-    container_name: jenkins-plugins
-    volumes:
-      - ./jenkins/plugins.txt:/plugins.txt:ro
-      - jenkins_plugins:/plugins
-    command: [ "--war", "/dev/null",
-               "--plugin-file", "/plugins.txt",
-               "--plugin-download-directory", "/plugins" ]
-    networks: [ backend ]
-    restart: "no"
-
   jenkins:
     image: jenkins/jenkins:lts-jdk17
     container_name: jenkins
@@ -351,15 +329,8 @@ services:
       - "${JENKINS_AGENT_PORT}:50000"
     environment:
       - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
-      - CASC_JENKINS_CONFIG=/var/jenkins_home/casc-bundle
-    depends_on:
-      jenkins-plugins:
-        condition: service_completed_successfully
     volumes:
       - jenkins_home:/var/jenkins_home
-      - jenkins_plugins:/var/jenkins_home/plugins
-      - ./jenkins/jcasc:/var/jenkins_home/casc-bundle:ro
-      - ./jenkins/init.groovy.d:/var/jenkins_home/init.groovy.d:ro
       # (opcional) si quieres que Jenkins ejecute Docker en host para builds:
 #      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
@@ -373,25 +344,6 @@ services:
     # =======================
     # SonarQube + Postgres
     # =======================
-
-
-  sonarqube-seed:
-    image: alpine:3.20
-    container_name: sonarqube-seed
-    depends_on:
-      sonarqube:
-        condition: service_healthy
-    environment:
-      SONAR_URL: "http://sonarqube:9000"
-      SONAR_USER: "admin"
-      SONAR_PASS: "admin"
-      SONAR_TOKEN: "${SONAR_TOKEN}"
-      JENKINS_URL: "${JENKINS_URL}"
-    volumes:
-      - ./sonarqube/bootstrap:/seed:ro
-    command: [ "/bin/sh", "-c", "apk add --no-cache curl jq bash && bash /seed/seed.sh" ]
-    networks: [ backend ]
-    restart: "no"
 
 
   sonarqube:

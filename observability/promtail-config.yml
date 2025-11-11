@@ -4,14 +4,6 @@ server:
 
 clients:
   - url: http://loki:3100/loki/api/v1/push
-    tenant_id: "fake"  # 👈 evita el error "no org id"
-    batchwait: 1s
-    batchsize: 102400
-    timeout: 10s
-    backoff_config:
-      min_period: 500ms
-      max_period: 5s
-      max_retries: 3
 
 positions:
   filename: /tmp/positions.yaml
@@ -24,12 +16,11 @@ scrape_configs:
       - targets: [localhost]
         labels:
           job: docker
-          host: ${HOSTNAME}
-          __path__: /run/desktop/mnt/host/c/ProgramData/docker/containers/*/*.log
+          __path__: /var/lib/docker/containers/*/*-json.log
 
   - job_name: syslog
     static_configs:
       - targets: [localhost]
         labels:
           job: syslog
-          __path__: /run/desktop/mnt/host/c/Windows/System32/winevt/Logs/*.log
+          __path__: /var/log/*.log
