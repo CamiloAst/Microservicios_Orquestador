@@ -37,6 +37,83 @@ services:
     restart: unless-stopped
     networks: [backend]
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks: [ backend ]
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+
+  security-service:
+    image: your-org/security-service:latest
+    container_name: security-service
+    ports:
+      - "8081:8081"
+    networks: [ backend ]
+    # Si puedes, expone /actuator/health y valida aquí:
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep '\"status\":\"UP\"' || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  profile-service:
+    image: your-org/profile-service:latest
+    container_name: profile-service
+    ports:
+      - "8082:8082"
+    networks: [ backend ]
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep '\"status\":\"UP\"' || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  
+  api-gateway:
+    build:
+      context: ./api-gateway     # <-- carpeta donde está tu proyecto del gateway
+      dockerfile: Dockerfile     # <-- Dockerfile que copia el .jar
+    image: api-gateway:latest
+    container_name: api-gateway
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      security-service:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+    environment:
+      # Mapea tus variables del application.properties:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-guest}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASS:-guest}
+      # URLs base usadas por UserCompositeController (GET/PUT /users/{id})
+      SERVICES_SECURITY_BASEURL: http://security-service:8081
+      SERVICES_PROFILE_BASEURL: http://profile-service:8082
+      # Actuator (opcional)
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW-DETAILS: always
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,metrics,info,prometheus
+      # Java opts (memoria razonable)
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport"
+    ports:
+      - "8080:8080"  # Gateway expuesto
+    networks: [ backend ]
+    restart: unless-stopped
+
+
   auth-db:
     image: postgres:16
     container_name: auth-db
