@@ -1,4 +1,3 @@
-version: "3.9"
 
 networks:
   backend:
@@ -8,12 +7,17 @@ volumes:
   auth_db_data:
   notif_db_data:
   jenkins_home:
+    external: true
+    name: microservicios_orquestador_jenkins_home
   sonar_data:
   sonar_extensions:
   sonar_logs:
   sonar_db_data:
+    external: true
+    name: microservicios_orquestador_sonar_db_data
   profiles_db_data:
   loki_data:
+
 
 services:
   rabbitmq:
