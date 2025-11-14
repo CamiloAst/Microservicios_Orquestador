@@ -50,66 +50,42 @@ services:
       retries: 5
     restart: unless-stopped
 
-
-  security-service:
-    image: your-org/security-service:latest
-    container_name: security-service
-    ports:
-      - "8081:8081"
-    networks: [ backend ]
-    # Si puedes, expone /actuator/health y valida aquí:
-    healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep '\"status\":\"UP\"' || exit 1" ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
-  profile-service:
-    image: your-org/profile-service:latest
-    container_name: profile-service
-    ports:
-      - "8082:8082"
-    networks: [ backend ]
-    healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep '\"status\":\"UP\"' || exit 1" ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
-
   api-gateway:
     build:
-      context: ./api-gateway     # <-- carpeta donde está tu proyecto del gateway
-      dockerfile: Dockerfile     # <-- Dockerfile que copia el .jar
-    image: api-gateway:latest
+      context: ../api-gateway     # carpeta del proyecto del gateway
+      dockerfile: Dockerfile
     container_name: api-gateway
     depends_on:
       rabbitmq:
         condition: service_healthy
       redis:
         condition: service_healthy
-      security-service:
+      auth-app:
         condition: service_healthy
-      profile-service:
+      profiles-service:
         condition: service_healthy
     environment:
-      # Mapea tus variables del application.properties:
+      # puerto interno del gateway
+      SERVER_PORT: 8080
+
+      # RabbitMQ (corrige nombres)
       SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_RABBITMQ_PORT: 5672
-      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-guest}
-      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASS:-guest}
-      # URLs base usadas por UserCompositeController (GET/PUT /users/{id})
-      SERVICES_SECURITY_BASEURL: http://security-service:8081
-      SERVICES_PROFILE_BASEURL: http://profile-service:8082
-      # Actuator (opcional)
-      MANAGEMENT_ENDPOINT_HEALTH_SHOW-DETAILS: always
-      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,metrics,info,prometheus
-      # Java opts (memoria razonable)
-      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport"
+      SPRING_RABBITMQ_PORT: ${RABBITMQ_PORT}
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+
+      # === Enlaces a microservicio de seguridad (auth-app) ===
+      SERVICES_SECURITY_BASE_URL: http://auth-app:${AUTH_APP_PORT}
+      SERVICES_SECURITY_LOGIN_PATH: /api/auth/login
+      SERVICES_SECURITY_REGISTER_PATH: /api/users
+      SERVICES_SECURITY_USERS_PATH: /api/users
+
+      # === Enlaces a microservicio de perfiles (profiles-service) ===
+      SERVICES_PROFILE_BASE_URL: http://profiles-service:${PROFILES_APP_PORT}
+      SERVICES_PROFILE_PROFILES_PATH: /profiles
+      # ajusta /api/profiles si tu controlador usa otra ruta base
     ports:
-      - "8080:8080"  # Gateway expuesto
+      - "8085:8080"    # host:container → accedes a gateway en http://localhost:8085
     networks: [ backend ]
     restart: unless-stopped
 
@@ -215,6 +191,7 @@ services:
       - "3100:3100"
     volumes:
       - ./observability/loki-config.yml:/etc/loki/local-config.yaml
+    networks: [ backend ]
 
   promtail:
     image: grafana/promtail:2.9.0
@@ -226,7 +203,7 @@ services:
       - ./observability/promtail-config.yml:/etc/promtail/config.yml
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command: -config.file=/etc/promtail/config.yml
-
+    networks: [ backend ]
 
   grafana:
     image: grafana/grafana:10.2.0
@@ -238,7 +215,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-
+    networks: [ backend ]
 
   profiles-service:
     build:
@@ -265,7 +242,7 @@ services:
       RABBITMQ_ROUTING_KEY_CREATED: user.created
       RABBITMQ_ROUTING_KEY_DELETED: user.deleted
     ports:
-      - "8086:8086"
+      - "${PROFILES_APP_PORT}:${PROFILES_APP_PORT}"
     networks: [ backend ]
 
   auth-app:
@@ -373,6 +350,50 @@ services:
     restart: unless-stopped
     networks: [backend]
 
+#  notification-service:
+#    build:
+#      context: ../notification_system_go   # ajusta la ruta según dónde pusiste la carpeta
+#      dockerfile: Dockerfile
+#    container_name: notification-service
+#    environment:
+#      # Puerto interno del servicio (lo usa main.go)
+#      SERVER_PORT: ${NOTIF_APP_PORT}
+#
+#      # RabbitMQ (Go está usando guest/guest@rabbitmq:5672)
+#      RABBITMQ_HOST: rabbitmq
+#      RABBITMQ_PORT: ${RABBITMQ_PORT}
+#      RABBITMQ_USER: ${RABBITMQ_DEFAULT_USER}
+#      RABBITMQ_PASS: ${RABBITMQ_DEFAULT_PASS}
+#
+#      # Deja las credenciales por si luego las usas desde Go
+#      SMTP_HOST: smtp.gmail.com
+#      SMTP_PORT: 587
+#      SMTP_USER: ${MAIL_USER}
+#      SMTP_PASS: ${MAIL_PASS}
+#      MAIL_FROM: ${MAIL_FROM}
+#
+#      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+#      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+#      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+#      TWILIO_WHATSAPP_NUMBER: ${TWILIO_WHATSAPP_NUMBER}
+#    depends_on:
+#      rabbitmq:
+#        condition: service_healthy
+#      # notif-db ya no es obligatorio si el Go no usa BD
+#    ports:
+#      - "${NOTIF_APP_PORT}:${NOTIF_APP_PORT}"
+#    healthcheck:
+#      # Cambia /actuator/health por la ruta real del health en Go.
+#      # Revisa `controller/health_controller.go` y usa la ruta que registre,
+#      # por ejemplo /health:
+#      test: [ "CMD-SHELL", "curl -fsS http://localhost:${NOTIF_APP_PORT}/health | grep -q '\"status\"'" ]
+#      interval: 10s
+#      timeout: 3s
+#      retries: 5
+#      start_period: 30s
+#    restart: unless-stopped
+#    networks: [ backend ]
+
   monitoring-app:
     build:
       context: ../monitoring
@@ -400,6 +421,56 @@ services:
       start_period: 25s
     restart: unless-stopped
     networks: [ backend ]
+
+  # Contenedor auxiliar que registra automáticamente los servicios
+  monitoring-init:
+    image: curlimages/curl:8.11.1
+    container_name: monitoring-init
+    depends_on:
+      - monitoring-app
+      - auth-app
+      - notification-service
+    networks:
+      - backend
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      echo "⏳ Esperando a que el servicio de monitoreo esté listo..."
+      # Esperar a que /health/live responda 2xx
+      until curl -sSf http://monitoring:8084/health/live > /dev/null; do
+        echo "monitoring no está listo aún, reintentando en 5s..."
+        sleep 5
+      done
+
+      echo "✅ monitoring está arriba, registrando servicios..."
+
+      echo "➡ Registrando auth-app..."
+      curl -s -X POST http://monitoring:8084/monitor/register \
+        -H "Content-Type: application/json" \
+        -d '{
+          "name": "auth-app",
+          "url": "http://auth-app:8080/actuator/health",
+          "frequency": 30000,
+          "emails": [
+            "Juans.orozcoa@uqvirtual.educo",
+            "j.kamilo3020@gmail.com"
+          ]
+        }' && echo "   ✔ auth-app registrado"
+
+      echo "➡ Registrando notification-service..."
+      curl -s -X POST http://monitoring:8084/monitor/register \
+        -H "Content-Type: application/json" \
+        -d '{
+          "name": "notification-service",
+          "url": "http://notification-service:8081/actuator/health",
+          "frequency": 30000,
+          "emails": [
+            "Juans.orozcoa@uqvirtual.educo",
+            "j.kamilo3020@gmail.com"
+          ]
+        }' && echo "   ✔ notification-service registrado"
+
+      echo "🎉 Registro automático completado. Saliendo..."
+    restart: "no"
 
   jenkins:
     image: jenkins/jenkins:lts-jdk17
